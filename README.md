@@ -10,3 +10,9 @@ Built with Pyodide, it runs actual Pandas code in your browser, providing a hand
 
 Try it now and unravel the complexities of data resampling with ease!
 
+## TODO
+- Intro and explanations in page
+- Better UI
+- Allow user data (through csv upload?)
+- Better Visualization
+- Offsets not working

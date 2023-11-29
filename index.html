@@ -28,8 +28,8 @@
         <div class="input-field">
             <label class="input-label" for="resampleFrequency">Resample Frequency:</label>
             <select id="resampleFrequency">
-                <option value="M">Monthly</option>
                 <option value="Y">Yearly</option>
+                <option value="M">Monthly</option>
                 <option value="W">Weekly</option>
                 
 
@@ -138,7 +138,8 @@
                 import data
                 import pandas as pd
                 dates = pd.date_range(start=data.startDate, end=data.endDate, freq="D")
-                df = pd.Series(list(range(len(dates))), index=dates)
+                vals = [int(f"{x.year}{x.month:02}{x.day:02}") for x in dates]
+                df = pd.Series(vals, index=dates)
                 resampled = df.resample(rule=data.freq, closed=data.closed, label=data.label, offset=data.loffset)
                 agg = resampled.agg(data.aggMethod)
                 for label, group in resampled:
@@ -169,12 +170,33 @@
                 options: {
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: false,
+                            min: 'auto'  // Automatically sets the minimum value
+
                         }
                     },
-                    tooltips: {
-                        mode: 'index',
-                        intersect: false
+                    // tooltips: {
+                    //     mode: 'index',
+                    //     intersect: false
+                    // },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    let value = context.parsed.y; // Get the current value
+                                    const statisticalMethods = ['mean', 'median', 'sum', 'count'];
+
+                                    if (statisticalMethods.includes(aggMethod)) {
+                                        return `Value: ${value}`;  // Return the raw value for statistical methods
+                                    }
+                                    let year = Math.floor(value / 10000);
+                                    let month = Math.floor((value % 10000) / 100);
+                                    let day = value % 100;
+                                    let dateString = `${year}-${month}-${day}`;
+                                    return `Value from ${dateString}`;
+                                }
+                            }
+                        }
                     },
                     hover: {
                         mode: 'nearest',
@@ -186,8 +208,6 @@
         }
         document.getElementById('executeButton').addEventListener('click', function() {
             main();   
-            // Call Python function here with these parameters
-            // Display results in 'results' div
         });
     </script>
 </body>
