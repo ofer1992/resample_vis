@@ -192,6 +192,8 @@
                                     let year = Math.floor(value / 10000);
                                     let month = Math.floor((value % 10000) / 100);
                                     let day = value % 100;
+                                    month = month < 10 ? '0' + month : month;
+                                    day = day < 10 ? '0' + day : day;
                                     let dateString = `${year}-${month}-${day}`;
                                     return `Value from ${dateString}`;
                                 }
