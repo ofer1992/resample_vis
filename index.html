@@ -1,0 +1,194 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Resampling Demo</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { width: 80%; margin: auto; padding: 20px; }
+        .input-field { margin-bottom: 10px; }
+        .input-label { margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Data Resampling Demo</h1>
+        <div class="input-field">
+            <label class="input-label" for="dataSelection">Data Selection:</label>
+            <select id="dataSelection">
+                <option value="AAPL">AAPL</option>
+                <option value="GOOG">GOOG</option>
+                <!-- Add other data sources here -->
+            </select>
+        </div>
+        <div class="input-field">
+            <label class="input-label" for="resampleFrequency">Resample Frequency:</label>
+            <select id="resampleFrequency">
+                <option value="M">Monthly</option>
+                <option value="Y">Yearly</option>
+                <option value="W">Weekly</option>
+                
+
+            </select>
+        </div>
+        <div class="input-field">
+            <label class="input-label" for="aggregationMethod">Aggregation Method:</label>
+            <select id="aggregationMethod">
+                <option value="bfill">bfill</option>
+                <option value="ffill">ffill</option>
+                <option value="nearest">nearest</option>
+                <option value="count">count</option>
+                <option value="first">first</option>
+                <option value="last">last</option>
+                <option value="max">max</option>
+                <option value="median">median</option>
+                <option value="min">min</option>
+                <option value="mean">mean</option>
+                <option value="sum">sum</option>
+
+            </select>
+        </div>
+        <div class="input-field">
+            <label class="input-label" for="closed">Closed:</label>
+            <select id="closed">
+                <option value="right">Right</option>
+                <option value="left">Left</option>
+            </select>
+        </div>
+        
+        <div class="input-field">
+            <label class="input-label" for="label">Label:</label>
+            <select id="label">
+                <option value="right">Right</option>
+                <option value="left">Left</option>
+            </select>
+        </div>
+        
+        <div class="input-field">
+            <label class="input-label" for="loffset">Label Offset:</label>
+            <input type="text" id="loffset" placeholder="e.g., 1D, 1H">
+        </div>
+        
+        <div class="input-field">
+            <label class="input-label" for="startDate">Start Date:</label>
+            <input type="date" id="startDate" value="2020-01-01">
+        </div>
+        <div class="input-field">
+            <label class="input-label" for="endDate">End Date:</label>
+            <input type="date" id="endDate" value="2023-11-28">
+        </div>
+        <button id="executeButton">Execute</button>
+
+        <div id="results">
+            <canvas id="resampleChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // JavaScript to handle the button click and call Python code
+        // document.getElementById('executeButton').disabled = true;
+        // pyodide = null;
+        async function loadPy() {
+
+            let pyodide = await loadPyodide();
+            await pyodide.loadPackage('pandas') ;
+            // await pyodide.loadPackage('micropip');
+            // const micropip = pyodide.pyimport("micropip");
+            // await micropip.install("yfinance");
+            // document.getElementById('executeButton').disabled = false;
+            return pyodide
+        }
+        init_pyodide = loadPy();
+        let resampleChart;
+        // .then(() => {
+            // pyodide.runPython('print("pyodide loaded")')
+        // })
+        async function main() {
+            let pyodide = await init_pyodide;
+            const ticker = document.getElementById('dataSelection').value;
+            const freq = document.getElementById('resampleFrequency').value;
+            const closed = document.getElementById('closed').value;
+            const label = document.getElementById('label').value;
+            const loffset = document.getElementById('loffset').value;
+            const aggMethod = document.getElementById('aggregationMethod').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            let data = {
+                ticker: ticker,
+                freq: freq,
+                closed: closed,
+                label: label, 
+                loffset: loffset,
+                aggMethod: aggMethod,
+                startDate: startDate,
+                endDate: endDate
+            };
+            try {
+                pyodide.unregisterJsModule("data");
+                pyodide.runPython('import sys; sys.modules.pop("data", None)')
+            }
+            catch(err) {
+            }
+            pyodide.registerJsModule("data", data);
+            pyodide.runPython(`
+                import data
+                import pandas as pd
+                dates = pd.date_range(start=data.startDate, end=data.endDate, freq="D")
+                df = pd.Series(list(range(len(dates))), index=dates)
+                resampled = df.resample(rule=data.freq, closed=data.closed, label=data.label, offset=data.loffset)
+                agg = resampled.agg(data.aggMethod)
+                for label, group in resampled:
+                    start_date = group.index.min()
+                    end_date = group.index.max()
+                    # print(f"Bin start: {start_date}, Bin end: {end_date}")
+                ret = [[str(group.index.min()),str(group.index.max()),val] for ((_, group), val) in zip(resampled, agg.tolist())]
+            `)
+
+            let chartData = pyodide.globals.get('ret').toJs(); // Populate this with your Python data
+
+            let ctx = document.getElementById('resampleChart').getContext('2d');
+            if (resampleChart) {
+                resampleChart.destroy();
+            }
+            resampleChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.map(item => `${item[0].substr(0,10)}\n${item[1].substr(0,10)}`),
+                    datasets: [{
+                        label: 'Aggregated Value',
+                        data: chartData.map(item => item[2]),
+                        backgroundColor: 'rgba(0, 123, 255, 0.5)',
+                        borderColor: 'rgba(0, 123, 255, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    tooltips: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    hover: {
+                        mode: 'nearest',
+                        intersect: true
+                    }
+                }
+            });
+
+        }
+        document.getElementById('executeButton').addEventListener('click', function() {
+            main();   
+            // Call Python function here with these parameters
+            // Display results in 'results' div
+        });
+    </script>
+</body>
+</html>
